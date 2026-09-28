@@ -1,4 +1,12 @@
-import type { AccountFilters, AccountListResponse, DashboardData } from "./types";
+import type {
+  AccountDetailData,
+  AccountFilters,
+  AccountListResponse,
+  DashboardData,
+  ReviewStatus,
+  SearchTaskCreate,
+  SearchTaskSummary,
+} from "./types";
 
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1";
@@ -42,5 +50,15 @@ export const api = {
   dashboard: () => request<DashboardData>("/dashboard"),
   accounts: (filters: AccountFilters) =>
     request<AccountListResponse>(`/accounts?${buildAccountQuery(filters)}`),
+  account: (id: string) => request<AccountDetailData>(`/accounts/${id}`),
+  submitReview: (accountId: string, status: ReviewStatus, note: string) =>
+    request(`/accounts/${accountId}/review`, {
+      method: "POST",
+      body: JSON.stringify({ status, note }),
+    }),
+  tasks: () => request<{ items: SearchTaskSummary[] }>("/search-tasks"),
+  task: (id: string) => request<SearchTaskSummary>(`/search-tasks/${id}`),
+  createTask: (body: SearchTaskCreate) =>
+    request<SearchTaskSummary>("/search-tasks", { method: "POST", body: JSON.stringify(body) }),
+  cancelTask: (id: string) => request(`/search-tasks/${id}/cancel`, { method: "POST" }),
 };
-
