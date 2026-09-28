@@ -18,6 +18,7 @@ test-results/
 .env
 data/
 logs/
+.run/
 *.db
 *.sqlite3
 

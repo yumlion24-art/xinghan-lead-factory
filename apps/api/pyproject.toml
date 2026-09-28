@@ -17,6 +17,9 @@ dependencies = [
   "uvicorn[standard]>=0.34",
 ]
 
+[project.scripts]
+lead-factory-seed = "lead_factory.demo_seed:main"
+
 [dependency-groups]
 dev = [
   "pyright>=1.1",

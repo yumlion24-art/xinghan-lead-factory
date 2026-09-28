@@ -6,7 +6,7 @@ import inspect
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
 
@@ -67,6 +67,18 @@ class Transport(Protocol):
     ) -> HttpResponse | RedirectResponse: ...
 
 
+def _pinned_request(url: str, resolved_ip: str) -> tuple[str, dict[str, str], dict[str, str]]:
+    parts = urlsplit(url)
+    hostname = parts.hostname or ""
+    port = parts.port
+    ip_netloc = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
+    if port is not None:
+        ip_netloc = f"{ip_netloc}:{port}"
+    target = urlunsplit((parts.scheme, ip_netloc, parts.path, parts.query, ""))
+    host = hostname if port is None else f"{hostname}:{port}"
+    return target, {"host": host}, {"sni_hostname": hostname}
+
+
 class HttpxTransport:
     async def get(
         self,
@@ -75,10 +87,12 @@ class HttpxTransport:
         timeout_seconds: float,
         max_bytes: int,
     ) -> HttpResponse | RedirectResponse:
-        del resolved_ips
+        if not resolved_ips:
+            raise FetchError("No validated address is available")
+        target, headers, extensions = _pinned_request(url, resolved_ips[0])
         async with (
             httpx.AsyncClient(follow_redirects=False, timeout=timeout_seconds) as client,
-            client.stream("GET", url) as response,
+            client.stream("GET", target, headers=headers, extensions=extensions) as response,
         ):
                 if response.is_redirect and response.headers.get("location"):
                     return RedirectResponse(response.headers["location"])
@@ -93,7 +107,7 @@ class HttpxTransport:
                     response.status_code,
                     {key.casefold(): value for key, value in response.headers.items()},
                     b"".join(chunks),
-                    str(response.url),
+                    url,
                 )
 
 

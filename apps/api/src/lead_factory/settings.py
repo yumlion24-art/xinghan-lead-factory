@@ -24,10 +24,9 @@ class Settings(BaseSettings):
     config_dir: Path = Field(default_factory=_default_config_dir)
     api_host: str = "127.0.0.1"
     api_port: int = 8000
-    web_origin: str = "http://localhost:3000"
+    web_origin: str = "http://127.0.0.1:3000"
     log_level: str = "INFO"
     log_dir: Path = Path("./logs")
     ai_provider: str = "disabled"
     ai_model: str = "gpt-5-mini"
     ai_api_key: str | None = None
-

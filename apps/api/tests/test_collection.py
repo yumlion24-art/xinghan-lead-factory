@@ -11,6 +11,7 @@ from lead_factory.services.fetcher import (
     FetchError,
     HttpResponse,
     RedirectResponse,
+    _pinned_request,
 )
 from lead_factory.services.robots import RobotsPolicy
 from lead_factory.services.url_safety import UnsafeUrlError, validate_public_url
@@ -39,6 +40,16 @@ class FakeTransport:
 
 def budget() -> BudgetLedger:
     return BudgetLedger(BudgetLimits(pages=5, domains=5, ai_calls=0, elapsed_seconds=60))
+
+
+def test_http_request_is_pinned_to_validated_ip_with_original_host_and_sni() -> None:
+    target, headers, extensions = _pinned_request(
+        "https://example.com/catalog?q=tray", "93.184.216.34"
+    )
+
+    assert target == "https://93.184.216.34/catalog?q=tray"
+    assert headers == {"host": "example.com"}
+    assert extensions == {"sni_hostname": "example.com"}
 
 
 @pytest.mark.asyncio
