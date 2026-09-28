@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from lead_factory.api.dependencies import get_session
 from lead_factory.api.errors import ApiError
-from lead_factory.models import Account, SearchTask, SourcePage
+from lead_factory.models import Account, SearchTask, SearchTaskAccount
 from lead_factory.schemas import SearchTaskCreate, SearchTaskSummary
 
 router = APIRouter(prefix="/search-tasks", tags=["search-tasks"])
@@ -55,9 +55,8 @@ def task_detail(task_id: str, session: Session = Depends(get_session)) -> dict[s
     task = _get_task(session, task_id)
     accounts = session.scalars(
         select(Account)
-        .join(SourcePage, SourcePage.account_id == Account.id)
-        .where(SourcePage.search_task_id == task_id)
-        .distinct()
+        .join(SearchTaskAccount, SearchTaskAccount.account_id == Account.id)
+        .where(SearchTaskAccount.search_task_id == task_id)
     ).all()
     return {
         **SearchTaskSummary.model_validate(task).model_dump(mode="json"),

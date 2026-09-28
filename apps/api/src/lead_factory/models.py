@@ -97,6 +97,17 @@ class SearchTask(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class SearchTaskAccount(Base):
+    __tablename__ = "search_task_accounts"
+
+    search_task_id: Mapped[str] = mapped_column(
+        ForeignKey("search_tasks.id", ondelete="CASCADE"), primary_key=True
+    )
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
 class SourcePage(Base):
     __tablename__ = "source_pages"
 
@@ -170,4 +181,3 @@ class ReviewDecision(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     account: Mapped[Account] = relationship(back_populates="review_decisions")
-

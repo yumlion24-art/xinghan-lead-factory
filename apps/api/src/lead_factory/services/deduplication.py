@@ -46,8 +46,6 @@ def upsert_observation(
             )
             session.add(page)
             session.flush()
-        elif search_task_id is not None:
-            page.search_task_id = search_task_id
         existing = session.scalar(
             select(Evidence).where(
                 Evidence.account_id == account.id,

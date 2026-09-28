@@ -145,4 +145,20 @@ def test_short_acronym_does_not_match_inside_unrelated_word(config_dir: Path) ->
         load_catalog(config_dir),
     )
 
-    assert all(item.rule_id != "demand-sustainable-materials" for item in result.contributions)
+    assert all(item.rule_id != "demand-sustainable" for item in result.contributions)
+
+
+def test_selected_icp_limits_icp_fit_rules(config_dir: Path) -> None:
+    result = score_account(
+        AccountObservation(
+            display_name="Airline Caterer",
+            normalized_domain="airline.example",
+            website_url="https://airline.example",
+            description="International airline catering procurement.",
+            evidence=[evidence("home", "International airline catering procurement.")],
+        ),
+        load_catalog(config_dir),
+        {"sustainable_buyers"},
+    )
+
+    assert all(item.rule_id != "icp-aviation" for item in result.contributions)

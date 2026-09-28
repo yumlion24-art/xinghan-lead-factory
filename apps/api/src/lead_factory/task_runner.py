@@ -13,6 +13,7 @@ from lead_factory.models import (
     ProductMatch,
     ScoreBreakdown,
     SearchTask,
+    SearchTaskAccount,
     SearchTaskStatus,
 )
 from lead_factory.providers.ai.base import AIProvider, EnrichmentRequest
@@ -26,6 +27,7 @@ from lead_factory.services.extractor import extract_company
 from lead_factory.services.fetcher import Fetcher, FetchError
 from lead_factory.services.product_matching import match_products
 from lead_factory.services.scoring import score_account
+from lead_factory.services.text_matching import contains_term
 from lead_factory.services.url_safety import SafeUrl, validate_public_url
 
 
@@ -70,7 +72,9 @@ class TaskRunner:
         with self.session_factory() as session:
             result = session.execute(
                 update(SearchTask)
-                .where(SearchTask.status == SearchTaskStatus.RUNNING)
+                .where(
+                    SearchTask.status.in_([SearchTaskStatus.RUNNING, SearchTaskStatus.QUEUED])
+                )
                 .values(
                     status=SearchTaskStatus.FAILED,
                     failure_summary="worker_interrupted: application restarted during task",
@@ -182,9 +186,17 @@ class TaskRunner:
                         break
                     if not any(keyword in link.casefold() for keyword in useful_paths):
                         continue
-                    linked_safe = self.url_validator(link)
-                    linked_page = await self.fetcher.fetch(linked_safe, ledger)
-                    page_observations.append((linked_page, extract_company(linked_page)))
+                    try:
+                        linked_safe = self.url_validator(link)
+                        if robots_check is not None and not await robots_check(
+                            linked_safe, ledger, self.catalog.crawler.user_agent
+                        ):
+                            failures.append(f"{link}: robots policy disallows collection")
+                            continue
+                        linked_page = await self.fetcher.fetch(linked_safe, ledger)
+                        page_observations.append((linked_page, extract_company(linked_page)))
+                    except Exception as exc:  # noqa: BLE001 - retain usable primary-page evidence
+                        failures.append(f"{link}: {exc}")
 
                 excerpt = " ".join(item.visible_text for _, item in page_observations)[:12000]
                 contacts = list(
@@ -214,17 +226,35 @@ class TaskRunner:
                             source_url=page.final_url,
                         )
                     )
+                selected_profiles = [
+                    profile
+                    for profile in self.catalog.icp.profiles
+                    if not task.icp_ids or profile.id in task.icp_ids
+                ]
+                profile_scores = {
+                    profile.id: sum(
+                        contains_term(excerpt, term)
+                        for term in [*profile.company_types, *profile.high_value_signals]
+                    )
+                    for profile in selected_profiles
+                }
+                best_icp = None
+                if profile_scores:
+                    best_id, best_score = max(profile_scores.items(), key=lambda pair: pair[1])
+                    if best_score:
+                        best_icp = best_id
                 observation = AccountObservation(
                     display_name=(page_observations[0][1].title or safe_url.hostname)[:255],
                     normalized_domain=normalize_domain(page.final_url),
                     website_url=page.final_url,
+                    industry=best_icp,
                     description=excerpt,
                     company_type=excerpt[:255],
                     scale_signals=[term for term in ("international", "multi-site", "fleet") if term in excerpt.casefold()],
                     contact_routes=contacts,
                     evidence=evidence,
                 )
-                score = score_account(observation, self.catalog)
+                score = score_account(observation, self.catalog, set(task.icp_ids) or None)
                 matches = match_products(observation, self.catalog)
                 outcome = await enrich_or_fallback(
                     self.ai_provider,
@@ -239,6 +269,8 @@ class TaskRunner:
                 )
                 with self.session_factory() as session:
                     account = upsert_observation(session, observation, search_task_id=task_id)
+                    if session.get(SearchTaskAccount, (task_id, account.id)) is None:
+                        session.add(SearchTaskAccount(search_task_id=task_id, account_id=account.id))
                     persisted_ids: dict[str, str] = {}
                     for item in observation.evidence:
                         persisted = session.scalar(

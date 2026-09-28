@@ -21,7 +21,8 @@ def test_sqlite_creates_all_v1_tables() -> None:
         "product_matches",
         "review_decisions",
         "score_breakdowns",
-        "search_tasks",
+            "search_tasks",
+            "search_task_accounts",
         "source_pages",
     }
 

@@ -18,6 +18,7 @@ def list_accounts(
     page_size: int = Query(default=25, ge=1, le=100),
     search: str | None = None,
     country: str | None = None,
+    icp: str | None = None,
     grade: LeadGrade | None = None,
     review_status: ReviewStatus | None = None,
     sort: str = Query(default="created_desc", pattern="^(created_desc|score_desc|score_asc|name_asc)$"),
@@ -29,6 +30,8 @@ def list_accounts(
         filters.append(or_(Account.display_name.ilike(pattern), Account.normalized_domain.ilike(pattern)))
     if country:
         filters.append(Account.country == country)
+    if icp:
+        filters.append(Account.industry == icp)
     if grade:
         filters.append(Account.grade == grade)
     if review_status:
@@ -131,4 +134,3 @@ def review_account(
         "actor": decision.actor,
         "created_at": decision.created_at.isoformat(),
     }
-

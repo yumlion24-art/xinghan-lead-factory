@@ -59,11 +59,24 @@ def _rule_evidence(
 
 
 def _positive_contributions(
-    observation: AccountObservation, config: CatalogConfig
+    observation: AccountObservation,
+    config: CatalogConfig,
+    allowed_icp_ids: set[str] | None = None,
 ) -> list[ScoreContribution]:
     candidates: dict[str, ScoreContribution] = {}
     limits = config.scoring.weights.model_dump()
     for rule in config.scoring.rules:
+        icp_rule_map = {
+            "icp-aviation": "aviation_catering",
+            "icp-foodservice": "foodservice_distribution",
+            "icp-sustainable": "sustainable_buyers",
+        }
+        if (
+            allowed_icp_ids
+            and rule.id in icp_rule_map
+            and icp_rule_map[rule.id] not in allowed_icp_ids
+        ):
+            continue
         matched = _rule_evidence(rule, observation)
         if matched is None:
             continue
@@ -110,8 +123,12 @@ def _negative_contributions(
     return contributions
 
 
-def score_account(observation: AccountObservation, config: CatalogConfig) -> ScoreResult:
-    positive = _positive_contributions(observation, config)
+def score_account(
+    observation: AccountObservation,
+    config: CatalogConfig,
+    allowed_icp_ids: set[str] | None = None,
+) -> ScoreResult:
+    positive = _positive_contributions(observation, config, allowed_icp_ids)
     negative = _negative_contributions(observation, config)
     positive_points = sum(item.points for item in positive)
     negative_points = abs(sum(item.points for item in negative))

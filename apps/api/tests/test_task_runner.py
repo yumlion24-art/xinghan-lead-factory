@@ -8,7 +8,14 @@ from sqlalchemy.orm import sessionmaker
 
 from lead_factory.config_loader import load_catalog
 from lead_factory.db import Base, get_engine
-from lead_factory.models import Account, Evidence, SearchTask, SearchTaskStatus, SourcePage
+from lead_factory.models import (
+    Account,
+    Evidence,
+    SearchTask,
+    SearchTaskAccount,
+    SearchTaskStatus,
+    SourcePage,
+)
 from lead_factory.providers.ai.disabled import DisabledAIProvider
 from lead_factory.providers.search.base import SearchHit, SearchRequest
 from lead_factory.services.fetcher import FetchError, FetchResult
@@ -103,6 +110,7 @@ async def test_seeded_task_persists_state_before_and_after_execution(runner_setu
             for evidence_id in match.evidence_ids
         )
         assert session.scalar(select(SourcePage)).search_task_id == task_id
+        assert session.get(SearchTaskAccount, (task_id, account.id)) is not None
 
 
 @pytest.mark.asyncio
