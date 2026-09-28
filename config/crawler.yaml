@@ -1,0 +1,16 @@
+user_agent: "XinghanLeadFactory/1.0 (+https://www.xhanaero.com/)"
+request_timeout_seconds: 12
+max_response_bytes: 2000000
+max_redirects: 5
+per_domain_concurrency: 1
+per_domain_delay_seconds: 2
+max_search_results: 50
+max_domains_per_task: 50
+max_pages_per_domain: 5
+max_pages_per_task: 100
+max_task_seconds: 900
+daily_page_limit: 500
+daily_ai_call_limit: 100
+allowed_content_types:
+  - text/html
+

@@ -1,0 +1,80 @@
+version: "v1.0.0"
+grade_a_min: 75
+grade_b_min: 55
+grade_c_min: 0
+negative_cap: 40
+weights:
+  icp_fit: 25
+  product_demand: 25
+  scale: 15
+  geography: 10
+  intent: 15
+  evidence: 10
+rules:
+  - id: icp-aviation
+    dimension: icp_fit
+    points: 25
+    any_terms: [airline, airport caterer, inflight catering, cabin service]
+    description: Strong aviation catering or airport supply fit
+  - id: icp-foodservice
+    dimension: icp_fit
+    points: 22
+    any_terms: [foodservice distributor, packaging distributor, restaurant supply, central kitchen]
+    description: Strong foodservice distribution fit
+  - id: icp-sustainable
+    dimension: icp_fit
+    points: 22
+    any_terms: [sustainable packaging, compostable packaging, biodegradable packaging]
+    description: Strong sustainable packaging buyer fit
+  - id: demand-airline-meals
+    dimension: product_demand
+    points: 25
+    any_terms: [meal tray, meal box, cutlery kit, inflight meal]
+    description: Direct demand for inflight meal products
+  - id: demand-food-packaging
+    dimension: product_demand
+    points: 22
+    any_terms: [food container, food packaging, cling film, heat seal film]
+    description: Direct demand for foodservice packaging
+  - id: demand-sustainable
+    dimension: product_demand
+    points: 22
+    any_terms: [bagasse, sugarcane fiber, sugarcane fibre, PLA, PBAT, compostable]
+    description: Direct demand for sustainable packaging
+  - id: scale-enterprise
+    dimension: scale
+    points: 15
+    any_terms: [international, nationwide, multi-site, fleet, distribution centers, distribution centres]
+    description: Evidence of enterprise purchasing scale
+  - id: geography-overseas
+    dimension: geography
+    points: 10
+    any_terms: [United States, UAE, United Kingdom, Europe, Australia, Singapore, Japan]
+    description: Target overseas market signal
+  - id: intent-procurement
+    dimension: intent
+    points: 15
+    any_terms: [procurement, tender, wholesale, import, private label, OEM, sourcing]
+    description: Procurement or sourcing intent
+  - id: evidence-complete
+    dimension: evidence
+    points: 10
+    any_terms: [contact us, about us, products, procurement]
+    description: Useful official-site evidence and contact route
+negative_rules:
+  - id: exclude-competitor
+    dimension: negative
+    points: -40
+    any_terms: [we manufacture packaging, packaging factory, packaging manufacturer]
+    description: Direct competing manufacturer
+  - id: exclude-consumer-only
+    dimension: negative
+    points: -25
+    any_terms: [book a table, order one meal, local cafe]
+    description: Consumer-only local operation
+  - id: exclude-irrelevant
+    dimension: negative
+    points: -40
+    any_terms: [software development, flight training, travel blog]
+    description: Irrelevant industry
+

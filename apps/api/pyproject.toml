@@ -1,0 +1,48 @@
+[project]
+name = "xinghan-lead-factory-api"
+version = "0.1.0"
+description = "Local lead discovery and qualification API for Xinghan"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic>=1.14",
+  "beautifulsoup4>=4.12",
+  "fastapi>=0.115",
+  "httpx>=0.28",
+  "pydantic-settings>=2.7",
+  "pyyaml>=6.0",
+  "sqlalchemy>=2.0",
+  "structlog>=25.1",
+  "tldextract>=5.1",
+  "uvicorn[standard]>=0.34",
+]
+
+[dependency-groups]
+dev = [
+  "pyright>=1.1",
+  "pytest>=8.3",
+  "pytest-asyncio>=0.25",
+  "ruff>=0.9",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+
