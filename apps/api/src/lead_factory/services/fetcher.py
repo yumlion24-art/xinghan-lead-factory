@@ -5,9 +5,10 @@ import hashlib
 import inspect
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, cast
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
+import httpcore
 import httpx
 
 from lead_factory.services.budgets import BudgetKind, BudgetLedger
@@ -68,6 +69,50 @@ class Transport(Protocol):
     ) -> HttpResponse | RedirectResponse: ...
 
 
+class PinnedNetworkBackend(httpcore.AsyncNetworkBackend):
+    """Connect to a validated IP while preserving the hostname for TLS and HTTP."""
+
+    def __init__(
+        self,
+        pinned_ip: str,
+        *,
+        delegate: httpcore.AsyncNetworkBackend | None = None,
+    ) -> None:
+        self.pinned_ip = pinned_ip
+        self.delegate = delegate or cast(httpcore.AsyncNetworkBackend, httpcore.AnyIOBackend())
+
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options=None,
+    ) -> httpcore.AsyncNetworkStream:
+        return await self.delegate.connect_tcp(
+            self.pinned_ip,
+            port,
+            timeout=timeout,
+            local_address=local_address,
+            socket_options=socket_options,
+        )
+
+    async def connect_unix_socket(
+        self,
+        path: str,
+        timeout: float | None = None,
+        socket_options=None,
+    ) -> httpcore.AsyncNetworkStream:
+        return await self.delegate.connect_unix_socket(
+            path,
+            timeout=timeout,
+            socket_options=socket_options,
+        )
+
+    async def sleep(self, seconds: float) -> None:
+        await self.delegate.sleep(seconds)
+
+
 def _pinned_request(url: str, resolved_ip: str) -> tuple[str, dict[str, str], dict[str, str]]:
     parts = urlsplit(url)
     hostname = parts.hostname or ""
@@ -93,31 +138,51 @@ class HttpxTransport:
     ) -> HttpResponse | RedirectResponse:
         if not resolved_ips:
             raise FetchError("No validated address is available")
-        target, headers, extensions = _pinned_request(url, resolved_ips[0])
-        async with (
-            httpx.AsyncClient(follow_redirects=False, timeout=timeout_seconds) as client,
-            client.stream(
-                "GET",
-                target,
-                headers={**headers, "user-agent": self.user_agent},
-                extensions=extensions,
-            ) as response,
-        ):
-                if response.is_redirect and response.headers.get("location"):
-                    return RedirectResponse(response.headers["location"])
+        hostname = urlsplit(url).hostname or ""
+        backend = PinnedNetworkBackend(resolved_ips[0])
+        timeout = {
+            "connect": timeout_seconds,
+            "read": timeout_seconds,
+            "write": timeout_seconds,
+            "pool": timeout_seconds,
+        }
+        headers = [
+            (b"host", hostname.encode("ascii")),
+            (b"user-agent", self.user_agent.encode("ascii")),
+            (b"accept-encoding", b"identity"),
+        ]
+        try:
+            async with (
+                httpcore.AsyncConnectionPool(network_backend=backend) as pool,
+                pool.stream(
+                    "GET",
+                    url,
+                    headers=headers,
+                    extensions={"timeout": timeout},
+                ) as response,
+            ):
+                response_headers = {
+                    key.decode("ascii").casefold(): value.decode("latin-1")
+                    for key, value in response.headers
+                }
+                location = response_headers.get("location")
+                if response.status in {301, 302, 303, 307, 308} and location:
+                    return RedirectResponse(location)
                 chunks: list[bytes] = []
                 length = 0
-                async for chunk in response.aiter_bytes():
+                async for chunk in response.aiter_stream():
                     length += len(chunk)
                     if length > max_bytes:
                         raise FetchError("Response exceeds configured size limit")
                     chunks.append(chunk)
                 return HttpResponse(
-                    response.status_code,
-                    {key.casefold(): value for key, value in response.headers.items()},
+                    response.status,
+                    response_headers,
                     b"".join(chunks),
                     url,
                 )
+        except (httpcore.NetworkError, httpcore.TimeoutException, httpcore.ProtocolError) as exc:
+            raise httpx.TransportError(str(exc)) from exc
 
 
 async def _sleep(callback: Callable[[float], object], seconds: float) -> None:

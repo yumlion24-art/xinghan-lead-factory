@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import httpcore
 import pytest
 
+from lead_factory.services import fetcher as fetcher_module
 from lead_factory.services.budgets import BudgetLedger, BudgetLimits
 from lead_factory.services.extractor import extract_company
 from lead_factory.services.fetcher import (
@@ -50,6 +52,38 @@ def test_http_request_is_pinned_to_validated_ip_with_original_host_and_sni() -> 
     assert target == "https://93.184.216.34/catalog?q=tray"
     assert headers == {"host": "example.com"}
     assert extensions == {"sni_hostname": "example.com"}
+
+
+class RecordingNetworkBackend(httpcore.AsyncNetworkBackend):
+    def __init__(self) -> None:
+        self.host: str | None = None
+
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options=None,
+    ):
+        self.host = host
+        return object()
+
+    async def connect_unix_socket(self, path, timeout=None, socket_options=None):
+        raise AssertionError("Unix sockets are not used for public web collection")
+
+    async def sleep(self, seconds: float) -> None:
+        return None
+
+
+@pytest.mark.asyncio
+async def test_pinned_network_backend_keeps_hostname_for_tls_but_connects_to_validated_ip() -> None:
+    delegate = RecordingNetworkBackend()
+    backend = fetcher_module.PinnedNetworkBackend("93.184.216.34", delegate=delegate)
+
+    await backend.connect_tcp("example.com", 443)
+
+    assert delegate.host == "93.184.216.34"
 
 
 @pytest.mark.asyncio
