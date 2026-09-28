@@ -4,7 +4,6 @@ from urllib.parse import urlsplit
 
 import tldextract
 
-
 _extract = tldextract.TLDExtract(suffix_list_urls=())
 
 

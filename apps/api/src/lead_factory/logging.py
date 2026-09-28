@@ -6,19 +6,19 @@ from datetime import UTC, datetime
 from typing import Any
 
 import structlog
+from structlog.types import EventDict
 
 from lead_factory.settings import Settings
-
 
 SECRET_KEYS = {"api_key", "authorization", "password", "secret", "token"}
 
 
-def _timestamp(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+def _timestamp(_: Any, __: str, event_dict: EventDict) -> EventDict:
     event_dict["timestamp"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     return event_dict
 
 
-def _redact(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+def _redact(_: Any, __: str, event_dict: EventDict) -> EventDict:
     def clean(value: Any, key: str = "") -> Any:
         if key.lower() in SECRET_KEYS or any(part in key.lower() for part in ("secret", "token")):
             return "[REDACTED]"
@@ -43,4 +43,3 @@ def configure_logging(settings: Settings) -> None:
         logger_factory=structlog.PrintLoggerFactory(file=sys.stdout),
         cache_logger_on_first_use=False,
     )
-

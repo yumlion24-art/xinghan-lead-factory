@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from lead_factory.config_loader import CatalogConfig, ScoreRule, ScoringConfig
 from lead_factory.models import LeadGrade, ReviewStatus
-from lead_factory.schemas import AccountObservation, EvidenceInput
+from lead_factory.schemas import AccountObservation
 
 
 @dataclass(frozen=True)

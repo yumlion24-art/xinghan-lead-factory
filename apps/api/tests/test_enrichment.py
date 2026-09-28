@@ -6,7 +6,7 @@ from lead_factory.models import LeadGrade
 from lead_factory.providers.ai.base import EnrichmentRequest, EnrichmentResult
 from lead_factory.providers.ai.disabled import DisabledAIProvider
 from lead_factory.schemas import AccountObservation, EvidenceInput
-from lead_factory.services.budgets import BudgetKind, BudgetLedger, BudgetLimits
+from lead_factory.services.budgets import BudgetLedger, BudgetLimits
 from lead_factory.services.enrichment import enrich_or_fallback
 from lead_factory.services.product_matching import ProductMatchResult
 

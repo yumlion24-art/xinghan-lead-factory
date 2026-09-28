@@ -7,8 +7,8 @@ import pytest
 from lead_factory.services.budgets import BudgetLedger, BudgetLimits
 from lead_factory.services.extractor import extract_company
 from lead_factory.services.fetcher import (
-    FetchError,
     Fetcher,
+    FetchError,
     HttpResponse,
     RedirectResponse,
 )

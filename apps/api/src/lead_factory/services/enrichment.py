@@ -56,7 +56,7 @@ async def enrich_or_fallback(
         raw_result = await provider.enrich(request)
     except TimeoutError:
         return _rules_only(request, "provider_timeout")
-    except Exception:
+    except Exception:  # noqa: BLE001 - provider isolation must preserve rules-only operation
         return _rules_only(request, "provider_error")
 
     try:
@@ -78,4 +78,3 @@ async def enrich_or_fallback(
         ai_result=result,
         fallback_reason=None,
     )
-

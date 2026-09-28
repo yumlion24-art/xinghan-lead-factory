@@ -8,7 +8,7 @@ class RobotsPolicy:
         self._parser = parser
 
     @classmethod
-    def from_text(cls, text: str) -> "RobotsPolicy":
+    def from_text(cls, text: str) -> RobotsPolicy:
         parser = RobotFileParser()
         parser.parse(text.splitlines())
         return cls(parser)

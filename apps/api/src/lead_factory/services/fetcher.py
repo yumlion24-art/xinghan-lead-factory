@@ -3,14 +3,21 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import inspect
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Protocol
+from typing import Protocol
 from urllib.parse import urljoin
 
 import httpx
 
 from lead_factory.services.budgets import BudgetKind, BudgetLedger
-from lead_factory.services.url_safety import Resolver, SafeUrl, SocketResolver, UnsafeUrlError, validate_public_url
+from lead_factory.services.url_safety import (
+    Resolver,
+    SafeUrl,
+    SocketResolver,
+    UnsafeUrlError,
+    validate_public_url,
+)
 
 
 class FetchError(RuntimeError):
@@ -69,8 +76,10 @@ class HttpxTransport:
         max_bytes: int,
     ) -> HttpResponse | RedirectResponse:
         del resolved_ips
-        async with httpx.AsyncClient(follow_redirects=False, timeout=timeout_seconds) as client:
-            async with client.stream("GET", url) as response:
+        async with (
+            httpx.AsyncClient(follow_redirects=False, timeout=timeout_seconds) as client,
+            client.stream("GET", url) as response,
+        ):
                 if response.is_redirect and response.headers.get("location"):
                     return RedirectResponse(response.headers["location"])
                 chunks: list[bytes] = []
@@ -126,6 +135,7 @@ class Fetcher:
             if set(fresh.resolved_ips) != set(current.resolved_ips):
                 raise UnsafeUrlError("DNS resolution changed after URL validation")
 
+            response: HttpResponse | RedirectResponse | None = None
             for attempt in range(self.max_retries + 1):
                 budget.consume(BudgetKind.PAGE)
                 if self.domain_delay_seconds:
@@ -143,6 +153,9 @@ class Fetcher:
                         raise FetchError(f"Fetch failed after {attempt + 1} attempts") from exc
                     await _sleep(self.sleep, 2 ** (attempt + 1))
 
+            if response is None:
+                raise FetchError("Fetch produced no response")
+
             if isinstance(response, RedirectResponse):
                 redirects += 1
                 if redirects > self.max_redirects:
@@ -159,4 +172,3 @@ class Fetcher:
             if response.status_code >= 400:
                 raise FetchError(f"HTTP {response.status_code}")
             return response.to_fetch_result()
-

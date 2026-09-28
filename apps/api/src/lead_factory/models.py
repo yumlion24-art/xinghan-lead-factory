@@ -67,11 +67,11 @@ class Account(Base):
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
 
-    source_pages: Mapped[list["SourcePage"]] = relationship(back_populates="account")
-    evidence: Mapped[list["Evidence"]] = relationship(back_populates="account")
-    score_breakdowns: Mapped[list["ScoreBreakdown"]] = relationship(back_populates="account")
-    product_matches: Mapped[list["ProductMatch"]] = relationship(back_populates="account")
-    review_decisions: Mapped[list["ReviewDecision"]] = relationship(
+    source_pages: Mapped[list[SourcePage]] = relationship(back_populates="account")
+    evidence: Mapped[list[Evidence]] = relationship(back_populates="account")
+    score_breakdowns: Mapped[list[ScoreBreakdown]] = relationship(back_populates="account")
+    product_matches: Mapped[list[ProductMatch]] = relationship(back_populates="account")
+    review_decisions: Mapped[list[ReviewDecision]] = relationship(
         back_populates="account", order_by="ReviewDecision.created_at"
     )
 
@@ -112,7 +112,7 @@ class SourcePage(Base):
     retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     account: Mapped[Account | None] = relationship(back_populates="source_pages")
-    evidence: Mapped[list["Evidence"]] = relationship(back_populates="source_page")
+    evidence: Mapped[list[Evidence]] = relationship(back_populates="source_page")
 
 
 class Evidence(Base):

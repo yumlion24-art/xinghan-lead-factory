@@ -62,7 +62,7 @@ class ScoringConfig(BaseModel):
     negative_rules: list[ScoreRule]
 
     @model_validator(mode="after")
-    def validate_score_ranges(self) -> "ScoringConfig":
+    def validate_score_ranges(self) -> ScoringConfig:
         if sum(self.weights.model_dump().values()) != 100:
             raise ValueError("weights must total 100")
         if not 100 >= self.grade_a_min > self.grade_b_min > self.grade_c_min == 0:
@@ -102,7 +102,7 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
         data = yaml.safe_load(handle)
     if not isinstance(data, dict):
-        raise ValueError(f"Configuration must be a mapping: {path}")
+        raise TypeError(f"Configuration must be a mapping: {path}")
     return data
 
 
@@ -113,4 +113,3 @@ def load_catalog(config_dir: Path) -> CatalogConfig:
         scoring=ScoringConfig.model_validate(_read_yaml(config_dir / "scoring.yaml")),
         crawler=CrawlerConfig.model_validate(_read_yaml(config_dir / "crawler.yaml")),
     )
-

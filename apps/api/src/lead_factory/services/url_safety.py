@@ -18,7 +18,7 @@ class Resolver(Protocol):
 class SocketResolver:
     def resolve(self, hostname: str) -> tuple[str, ...]:
         answers = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
-        return tuple(dict.fromkeys(answer[4][0] for answer in answers))
+        return tuple(dict.fromkeys(str(answer[4][0]) for answer in answers))
 
 
 @dataclass(frozen=True)
@@ -63,4 +63,3 @@ def validate_public_url(url: str, resolver: Resolver | None = None) -> SafeUrl:
     netloc = hostname if port is None else f"{hostname}:{port}"
     normalized = urlunsplit((parts.scheme.casefold(), netloc, parts.path or "", parts.query, ""))
     return SafeUrl(url=normalized, hostname=hostname, resolved_ips=addresses)
-

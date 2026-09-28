@@ -8,7 +8,6 @@ from bs4 import BeautifulSoup
 
 from lead_factory.services.fetcher import FetchResult
 
-
 EMAIL_PATTERN = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
 
 

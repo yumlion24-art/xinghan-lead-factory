@@ -43,6 +43,9 @@ addopts = "--strict-markers"
 line-length = 100
 target-version = "py312"
 
+[tool.ruff.lint.per-file-ignores]
+"src/lead_factory/api/*.py" = ["B008"]
+
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
