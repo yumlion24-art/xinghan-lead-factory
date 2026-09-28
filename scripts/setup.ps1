@@ -14,5 +14,7 @@ if (-not (Test-Path .env)) {
 }
 New-Item -ItemType Directory -Force data, logs, .run | Out-Null
 uv sync --project apps/api
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 npm ci
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host "Setup complete. Run: powershell -ExecutionPolicy Bypass -File scripts/seed-demo.ps1"

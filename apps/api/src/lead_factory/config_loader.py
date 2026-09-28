@@ -50,6 +50,13 @@ class ScoreRule(BaseModel):
     any_terms: list[str] = Field(default_factory=list)
     description: str
 
+    @model_validator(mode="after")
+    def validate_dimension(self) -> ScoreRule:
+        allowed = {"icp_fit", "product_demand", "scale", "geography", "intent", "evidence", "negative"}
+        if self.dimension not in allowed:
+            raise ValueError(f"unsupported scoring dimension: {self.dimension}")
+        return self
+
 
 class ScoringConfig(BaseModel):
     version: str
@@ -74,18 +81,18 @@ class CrawlerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     user_agent: str
-    request_timeout_seconds: float
-    max_response_bytes: int
-    max_redirects: int
-    per_domain_concurrency: int
-    per_domain_delay_seconds: float
-    max_search_results: int
-    max_domains_per_task: int
-    max_pages_per_domain: int
-    max_pages_per_task: int
-    max_task_seconds: int
-    daily_page_limit: int
-    daily_ai_call_limit: int
+    request_timeout_seconds: float = Field(gt=0)
+    max_response_bytes: int = Field(gt=0)
+    max_redirects: int = Field(ge=0)
+    per_domain_concurrency: int = Field(ge=1)
+    per_domain_delay_seconds: float = Field(ge=0)
+    max_search_results: int = Field(ge=1)
+    max_domains_per_task: int = Field(ge=1)
+    max_pages_per_domain: int = Field(ge=1)
+    max_pages_per_task: int = Field(ge=1)
+    max_task_seconds: int = Field(ge=1)
+    daily_page_limit: int = Field(ge=1)
+    daily_ai_call_limit: int = Field(ge=0)
     allowed_content_types: list[str]
 
 

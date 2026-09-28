@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -26,11 +28,16 @@ def dashboard(session: Session = Depends(get_session)) -> dict[str, object]:
             SearchTask.status.in_([SearchTaskStatus.QUEUED, SearchTaskStatus.RUNNING])
         )
     ) or 0
+    today = datetime.now(UTC).date()
+    usage = {"pages": 0, "domains": 0, "ai_calls": 0}
+    for task in session.scalars(select(SearchTask)).all():
+        if task.created_at.date() == today:
+            for key in usage:
+                usage[key] += int((task.budget_usage or {}).get(key, 0))
     return {
         "accounts_total": total,
         "grades": grades,
         "reviews": {getattr(key, "value", str(key)): value for key, value in review_counts.items()},
         "active_tasks": active_tasks,
-        "budget_usage": {"pages": 0, "domains": 0, "ai_calls": 0},
+        "budget_usage": usage,
     }
-

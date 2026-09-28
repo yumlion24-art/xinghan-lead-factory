@@ -20,7 +20,7 @@ from lead_factory.providers.ai.openai_provider import OpenAIProvider
 from lead_factory.providers.search.base import SearchHit, SearchRequest
 from lead_factory.providers.search.public_search import PublicSearchProvider
 from lead_factory.providers.search.seed import SeedSearchProvider
-from lead_factory.services.fetcher import Fetcher
+from lead_factory.services.fetcher import Fetcher, HttpxTransport
 from lead_factory.settings import Settings
 from lead_factory.task_runner import TaskRunner
 
@@ -82,6 +82,7 @@ def create_app(
             catalog=catalog,
             search_provider=CombinedSearchProvider(),
             fetcher=Fetcher(
+                transport=HttpxTransport(catalog.crawler.user_agent),
                 timeout_seconds=catalog.crawler.request_timeout_seconds,
                 max_response_bytes=catalog.crawler.max_response_bytes,
                 max_redirects=catalog.crawler.max_redirects,

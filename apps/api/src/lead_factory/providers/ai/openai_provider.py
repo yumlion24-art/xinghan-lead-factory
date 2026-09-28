@@ -2,10 +2,25 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 from openai import AsyncOpenAI
 
 from lead_factory.providers.ai.base import EnrichmentRequest, EnrichmentResult
+
+
+def _strict_schema(value: object) -> object:
+    if isinstance(value, dict):
+        result = {key: _strict_schema(item) for key, item in value.items()}
+        if result.get("type") == "object" or "properties" in result:
+            result["additionalProperties"] = False
+            properties = result.get("properties", {})
+            if isinstance(properties, dict):
+                result["required"] = list(properties)
+        return result
+    if isinstance(value, list):
+        return [_strict_schema(item) for item in value]
+    return value
 
 
 class OpenAIProvider:
@@ -40,14 +55,14 @@ class OpenAIProvider:
             model=self.model,
             instructions=prompt,
             input=json.dumps(payload, ensure_ascii=False),
-            text={
+            text=cast(Any, {
                 "format": {
                     "type": "json_schema",
                     "name": "company_enrichment",
                     "strict": True,
-                    "schema": EnrichmentResult.model_json_schema(),
+                    "schema": _strict_schema(EnrichmentResult.model_json_schema()),
                 }
-            },
+            }),
         )
         result = EnrichmentResult.model_validate_json(response.output_text)
         usage = getattr(response, "usage", None)
@@ -55,4 +70,3 @@ class OpenAIProvider:
             result.usage.input_tokens = getattr(usage, "input_tokens", None)
             result.usage.output_tokens = getattr(usage, "output_tokens", None)
         return result
-

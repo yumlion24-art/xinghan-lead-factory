@@ -8,7 +8,7 @@ foreach ($Name in @("api", "web")) {
         $ProcessId = [int](Get-Content $PidFile)
         $Process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
         if ($Process) {
-            Stop-Process -Id $ProcessId
+            taskkill /PID $ProcessId /T /F | Out-Null
             Write-Host "Stopped $Name (PID $ProcessId)."
         }
         Remove-Item -LiteralPath $PidFile

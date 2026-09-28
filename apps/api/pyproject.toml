@@ -10,6 +10,7 @@ dependencies = [
   "httpx>=0.28",
   "openai>=1.70",
   "pydantic-settings>=2.7",
+  "psycopg[binary]>=3.2",
   "pyyaml>=6.0",
   "sqlalchemy>=2.0",
   "structlog>=25.1",

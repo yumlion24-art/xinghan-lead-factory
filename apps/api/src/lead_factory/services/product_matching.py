@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from lead_factory.config_loader import CatalogConfig, ProductFamily
 from lead_factory.schemas import AccountObservation
+from lead_factory.services.text_matching import contains_term
 
 
 @dataclass(frozen=True)
@@ -29,8 +30,7 @@ def match_products(
         evidence_ids: list[str] = []
         matched_terms: set[str] = set()
         for item in observation.evidence:
-            excerpt = item.excerpt.casefold()
-            hits = {term for term in terms if term in excerpt}
+            hits = {term for term in terms if contains_term(item.excerpt, term)}
             if hits:
                 evidence_ids.append(item.id)
                 matched_terms.update(hits)

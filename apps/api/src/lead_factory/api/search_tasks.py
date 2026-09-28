@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from lead_factory.api.dependencies import get_session
 from lead_factory.api.errors import ApiError
-from lead_factory.models import SearchTask
+from lead_factory.models import Account, SearchTask, SourcePage
 from lead_factory.schemas import SearchTaskCreate, SearchTaskSummary
 
 router = APIRouter(prefix="/search-tasks", tags=["search-tasks"])
@@ -19,7 +19,7 @@ def list_tasks(session: Session = Depends(get_session)) -> dict[str, object]:
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-def create_task(
+async def create_task(
     body: SearchTaskCreate,
     request: Request,
     session: Session = Depends(get_session),
@@ -52,7 +52,20 @@ def _get_task(session: Session, task_id: str) -> SearchTask:
 
 @router.get("/{task_id}")
 def task_detail(task_id: str, session: Session = Depends(get_session)) -> dict[str, object]:
-    return SearchTaskSummary.model_validate(_get_task(session, task_id)).model_dump(mode="json")
+    task = _get_task(session, task_id)
+    accounts = session.scalars(
+        select(Account)
+        .join(SourcePage, SourcePage.account_id == Account.id)
+        .where(SourcePage.search_task_id == task_id)
+        .distinct()
+    ).all()
+    return {
+        **SearchTaskSummary.model_validate(task).model_dump(mode="json"),
+        "accounts": [
+            {"id": account.id, "display_name": account.display_name, "grade": account.grade}
+            for account in accounts
+        ],
+    }
 
 
 @router.post("/{task_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
@@ -64,4 +77,3 @@ def cancel_task(
     _get_task(session, task_id)
     request.app.state.runner.cancel(task_id)
     return {"status": "cancellation_requested"}
-

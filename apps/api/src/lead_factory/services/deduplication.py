@@ -9,7 +9,9 @@ from lead_factory.models import Account, Evidence, SourcePage
 from lead_factory.schemas import AccountObservation
 
 
-def upsert_observation(session: Session, observation: AccountObservation) -> Account:
+def upsert_observation(
+    session: Session, observation: AccountObservation, *, search_task_id: str | None = None
+) -> Account:
     account = session.scalar(
         select(Account).where(Account.normalized_domain == observation.normalized_domain)
     )
@@ -40,9 +42,12 @@ def upsert_observation(session: Session, observation: AccountObservation) -> Acc
                 retrieval_status="collected",
                 content_hash=hashlib.sha256(item.excerpt.encode()).hexdigest(),
                 extracted_text=item.excerpt,
+                search_task_id=search_task_id,
             )
             session.add(page)
             session.flush()
+        elif search_task_id is not None:
+            page.search_task_id = search_task_id
         existing = session.scalar(
             select(Evidence).where(
                 Evidence.account_id == account.id,
@@ -63,4 +68,3 @@ def upsert_observation(session: Session, observation: AccountObservation) -> Acc
             )
     session.flush()
     return account
-

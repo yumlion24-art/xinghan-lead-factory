@@ -132,3 +132,17 @@ def test_insufficient_evidence_requires_review(config_dir: Path) -> None:
     assert result.review_recommendation is ReviewStatus.NEEDS_REVIEW
     assert result.review_reason == "insufficient_evidence"
 
+
+def test_short_acronym_does_not_match_inside_unrelated_word(config_dir: Path) -> None:
+    result = score_account(
+        AccountObservation(
+            display_name="Playground Operator",
+            normalized_domain="playground.example",
+            website_url="https://playground.example",
+            description="We operate a playground platform.",
+            evidence=[evidence("home", "We operate a playground platform.")],
+        ),
+        load_catalog(config_dir),
+    )
+
+    assert all(item.rule_id != "demand-sustainable-materials" for item in result.contributions)

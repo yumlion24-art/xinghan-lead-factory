@@ -5,6 +5,7 @@ import pytest
 from lead_factory.models import LeadGrade
 from lead_factory.providers.ai.base import EnrichmentRequest, EnrichmentResult
 from lead_factory.providers.ai.disabled import DisabledAIProvider
+from lead_factory.providers.ai.openai_provider import _strict_schema
 from lead_factory.schemas import AccountObservation, EvidenceInput
 from lead_factory.services.budgets import BudgetLedger, BudgetLimits
 from lead_factory.services.enrichment import enrich_or_fallback
@@ -60,6 +61,17 @@ def request() -> EnrichmentRequest:
 
 def budget(ai_calls: int = 1) -> BudgetLedger:
     return BudgetLedger(BudgetLimits(pages=1, domains=1, ai_calls=ai_calls, elapsed_seconds=60))
+
+
+def test_openai_schema_is_recursively_strict() -> None:
+    schema = _strict_schema(EnrichmentResult.model_json_schema())
+
+    assert schema["additionalProperties"] is False
+    assert set(schema["required"]) == set(schema["properties"])
+    for definition in schema["$defs"].values():
+        if definition.get("type") == "object":
+            assert definition["additionalProperties"] is False
+            assert set(definition["required"]) == set(definition["properties"])
 
 
 @pytest.mark.asyncio

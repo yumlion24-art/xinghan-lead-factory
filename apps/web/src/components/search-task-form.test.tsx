@@ -79,10 +79,7 @@ describe("SearchTaskList", () => {
 
     expect(screen.getByText("8 succeeded / 2 failed")).toBeInTheDocument();
     expect(screen.getByText("2 domains could not be fetched")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Cancel food packaging" })).toHaveAttribute(
-      "href",
-      "/search-tasks/task-2?action=cancel",
-    );
-    expect(screen.queryByRole("link", { name: "Cancel airline catering" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel food packaging" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel airline catering" })).not.toBeInTheDocument();
   });
 });

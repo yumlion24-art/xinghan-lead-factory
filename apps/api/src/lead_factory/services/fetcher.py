@@ -11,6 +11,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 import httpx
 
 from lead_factory.services.budgets import BudgetKind, BudgetLedger
+from lead_factory.services.robots import RobotsPolicy
 from lead_factory.services.url_safety import (
     Resolver,
     SafeUrl,
@@ -80,6 +81,9 @@ def _pinned_request(url: str, resolved_ip: str) -> tuple[str, dict[str, str], di
 
 
 class HttpxTransport:
+    def __init__(self, user_agent: str = "XinghanLeadFactory/1.0") -> None:
+        self.user_agent = user_agent
+
     async def get(
         self,
         url: str,
@@ -92,7 +96,12 @@ class HttpxTransport:
         target, headers, extensions = _pinned_request(url, resolved_ips[0])
         async with (
             httpx.AsyncClient(follow_redirects=False, timeout=timeout_seconds) as client,
-            client.stream("GET", target, headers=headers, extensions=extensions) as response,
+            client.stream(
+                "GET",
+                target,
+                headers={**headers, "user-agent": self.user_agent},
+                extensions=extensions,
+            ) as response,
         ):
                 if response.is_redirect and response.headers.get("location"):
                     return RedirectResponse(response.headers["location"])
@@ -140,8 +149,15 @@ class Fetcher:
         self.domain_delay_seconds = domain_delay_seconds
         self.allowed_content_types = allowed_content_types
         self.sleep = sleep
+        self._domain_locks: dict[str, asyncio.Lock] = {}
 
-    async def fetch(self, safe_url: SafeUrl, budget: BudgetLedger) -> FetchResult:
+    async def fetch(
+        self,
+        safe_url: SafeUrl,
+        budget: BudgetLedger,
+        *,
+        allowed_content_types: tuple[str, ...] | None = None,
+    ) -> FetchResult:
         current = safe_url
         redirects = 0
         while True:
@@ -150,22 +166,24 @@ class Fetcher:
                 raise UnsafeUrlError("DNS resolution changed after URL validation")
 
             response: HttpResponse | RedirectResponse | None = None
-            for attempt in range(self.max_retries + 1):
-                budget.consume(BudgetKind.PAGE)
-                if self.domain_delay_seconds:
-                    await _sleep(self.sleep, self.domain_delay_seconds)
-                try:
-                    response = await self.transport.get(
-                        current.url,
-                        current.resolved_ips,
-                        self.timeout_seconds,
-                        self.max_response_bytes,
-                    )
-                    break
-                except (TimeoutError, httpx.TransportError) as exc:
-                    if attempt == self.max_retries:
-                        raise FetchError(f"Fetch failed after {attempt + 1} attempts") from exc
-                    await _sleep(self.sleep, 2 ** (attempt + 1))
+            lock = self._domain_locks.setdefault(current.hostname, asyncio.Lock())
+            async with lock:
+                for attempt in range(self.max_retries + 1):
+                    budget.consume(BudgetKind.PAGE)
+                    if self.domain_delay_seconds:
+                        await _sleep(self.sleep, self.domain_delay_seconds)
+                    try:
+                        response = await self.transport.get(
+                            current.url,
+                            current.resolved_ips,
+                            self.timeout_seconds,
+                            self.max_response_bytes,
+                        )
+                        break
+                    except (TimeoutError, httpx.TransportError) as exc:
+                        if attempt == self.max_retries:
+                            raise FetchError(f"Fetch failed after {attempt + 1} attempts") from exc
+                        await _sleep(self.sleep, 2 ** (attempt + 1))
 
             if response is None:
                 raise FetchError("Fetch produced no response")
@@ -181,8 +199,25 @@ class Fetcher:
             if len(response.content) > self.max_response_bytes:
                 raise FetchError("Response exceeds configured size limit")
             content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().casefold()
-            if content_type not in self.allowed_content_types:
+            accepted_types = allowed_content_types or self.allowed_content_types
+            if content_type not in accepted_types:
                 raise FetchError(f"Unsupported content type: {content_type or 'missing'}")
             if response.status_code >= 400:
                 raise FetchError(f"HTTP {response.status_code}")
             return response.to_fetch_result()
+
+    async def allowed_by_robots(
+        self, safe_url: SafeUrl, budget: BudgetLedger, user_agent: str
+    ) -> bool:
+        parts = urlsplit(safe_url.url)
+        robots_url = urlunsplit((parts.scheme, parts.netloc, "/robots.txt", "", ""))
+        robots_safe = validate_public_url(robots_url, self.resolver)
+        try:
+            result = await self.fetch(
+                robots_safe,
+                budget,
+                allowed_content_types=("text/plain", "text/html"),
+            )
+        except FetchError:
+            return True
+        return RobotsPolicy.from_text(result.text).allowed(user_agent, safe_url.url)

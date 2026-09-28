@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import type { SearchTaskSummary } from "@/lib/types";
+import { CancelTaskButton } from "./cancel-task-button";
 
 
 const active = new Set(["queued", "running"]);
@@ -24,11 +25,11 @@ export function SearchTaskList({ tasks }: { tasks: SearchTaskSummary[] }) {
             <div className="task-progress"><span style={{ width: `${discovered ? Math.min(100, processed / discovered * 100) : 0}%` }} /></div>
             <div className="task-card__meta"><span>{processed} / {discovered} processed</span><span>{succeeded} succeeded / {failed} failed</span><span>{task.budget_usage.pages ?? 0} pages</span></div>
             {task.failure_summary ? <p className="task-failure">{task.failure_summary}</p> : null}
-            <footer><Link href={`/search-tasks/${task.id}`}>View task</Link>{active.has(task.status) ? <Link href={`/search-tasks/${task.id}?action=cancel`} aria-label={`Cancel ${task.query || "seed URL search"}`}>Cancel</Link> : null}</footer>
+            {task.accounts?.length ? <ul className="task-accounts">{task.accounts.map((account) => <li key={account.id}><Link href={`/accounts/${account.id}`}>{account.display_name}{account.grade ? ` · Grade ${account.grade}` : ""}</Link></li>)}</ul> : null}
+            <footer><Link href={`/search-tasks/${task.id}`}>View task</Link>{active.has(task.status) ? <CancelTaskButton taskId={task.id} label={task.query || "seed URL search"} /> : null}</footer>
           </article>
         );
       })}
     </section>
   );
 }
-

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,7 @@ class RecordingRunner:
         self.cancelled: list[str] = []
 
     def enqueue(self, task_id: str) -> None:
+        asyncio.get_running_loop()
         self.enqueued.append(task_id)
 
     def cancel(self, task_id: str) -> None:

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from lead_factory.config_loader import CatalogConfig, ScoreRule, ScoringConfig
 from lead_factory.models import LeadGrade, ReviewStatus
 from lead_factory.schemas import AccountObservation
+from lead_factory.services.text_matching import contains_term
 
 
 @dataclass(frozen=True)
@@ -42,8 +43,7 @@ def _rule_evidence(
 ) -> tuple[str, str, str | None] | None:
     terms = [term.casefold() for term in rule.any_terms]
     for evidence in observation.evidence:
-        excerpt = evidence.excerpt.casefold()
-        if any(term in excerpt for term in terms):
+        if any(contains_term(evidence.excerpt, term) for term in terms):
             return evidence.excerpt, evidence.source_url, evidence.id
 
     fields = [
@@ -53,8 +53,7 @@ def _rule_evidence(
         " ".join(observation.scale_signals),
     ]
     for field in fields:
-        folded = field.casefold()
-        if any(term in folded for term in terms):
+        if any(contains_term(field, term) for term in terms):
             return field, observation.website_url, None
     return None
 
@@ -142,4 +141,3 @@ def score_account(observation: AccountObservation, config: CatalogConfig) -> Sco
         negative_points=negative_points,
         contributions=[*positive, *negative],
     )
-

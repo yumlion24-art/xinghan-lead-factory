@@ -46,3 +46,21 @@ def test_product_matches_never_claim_unseen_evidence(config_dir: Path) -> None:
     )
 
     assert match_products(observation, load_catalog(config_dir)) == []
+
+
+def test_product_match_does_not_match_pla_inside_playground(config_dir: Path) -> None:
+    observation = AccountObservation(
+        display_name="Playground Operator",
+        normalized_domain="playground.example",
+        website_url="https://playground.example",
+        evidence=[
+            EvidenceInput(
+                id="home",
+                signal_type="official_site",
+                excerpt="We operate a playground platform.",
+                source_url="https://playground.example",
+            )
+        ],
+    )
+
+    assert match_products(observation, load_catalog(config_dir)) == []

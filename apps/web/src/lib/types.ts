@@ -68,6 +68,7 @@ export interface SearchTaskSummary {
   budget_usage: Record<string, number>;
   failure_summary: string | null;
   created_at: string;
+  accounts?: Array<{ id: string; display_name: string; grade: LeadGrade | null }>;
 }
 
 export interface SearchTaskCreate {

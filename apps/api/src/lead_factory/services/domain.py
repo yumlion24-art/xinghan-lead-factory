@@ -20,5 +20,4 @@ def normalize_domain(url: str) -> str:
         raise ValueError("URL must include a registrable hostname")
     if result.suffix:
         return f"{result.domain}.{result.suffix}"
-    return result.domain
-
+    return hostname

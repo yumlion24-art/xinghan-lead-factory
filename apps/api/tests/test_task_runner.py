@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from lead_factory.config_loader import load_catalog
 from lead_factory.db import Base, get_engine
-from lead_factory.models import Account, SearchTask, SearchTaskStatus
+from lead_factory.models import Account, Evidence, SearchTask, SearchTaskStatus, SourcePage
 from lead_factory.providers.ai.disabled import DisabledAIProvider
 from lead_factory.providers.search.base import SearchHit, SearchRequest
 from lead_factory.services.fetcher import FetchError, FetchResult
@@ -97,6 +97,12 @@ async def test_seeded_task_persists_state_before_and_after_execution(runner_setu
         assert account.grade is not None
         assert account.score >= 75
         assert len(account.score_breakdowns) > 0
+        assert all(
+            evidence_id in {item.id for item in session.scalars(select(Evidence))}
+            for match in account.product_matches
+            for evidence_id in match.evidence_ids
+        )
+        assert session.scalar(select(SourcePage)).search_task_id == task_id
 
 
 @pytest.mark.asyncio
@@ -174,4 +180,3 @@ def test_recovery_marks_interrupted_running_tasks_failed(runner_setup) -> None:
         assert recovered == 1
         assert task is not None and task.status is SearchTaskStatus.FAILED
         assert task.failure_summary == "worker_interrupted: application restarted during task"
-
