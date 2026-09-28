@@ -1,0 +1,288 @@
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import inspect
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Protocol, cast
+from urllib.parse import urljoin, urlsplit, urlunsplit
+
+import httpcore
+import httpx
+
+from lead_factory.services.budgets import BudgetKind, BudgetLedger
+from lead_factory.services.robots import RobotsPolicy
+from lead_factory.services.url_safety import (
+    Resolver,
+    SafeUrl,
+    SocketResolver,
+    UnsafeUrlError,
+    validate_public_url,
+)
+
+
+class FetchError(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class RedirectResponse:
+    location: str
+
+
+@dataclass(frozen=True)
+class FetchResult:
+    status_code: int
+    headers: dict[str, str]
+    content: bytes
+    final_url: str
+    text: str
+    content_hash: str
+
+
+@dataclass(frozen=True)
+class HttpResponse:
+    status_code: int
+    headers: dict[str, str]
+    content: bytes
+    final_url: str
+
+    def to_fetch_result(self) -> FetchResult:
+        return FetchResult(
+            status_code=self.status_code,
+            headers=self.headers,
+            content=self.content,
+            final_url=self.final_url,
+            text=self.content.decode("utf-8", errors="replace"),
+            content_hash=hashlib.sha256(self.content).hexdigest(),
+        )
+
+
+class Transport(Protocol):
+    async def get(
+        self,
+        url: str,
+        resolved_ips: tuple[str, ...],
+        timeout_seconds: float,
+        max_bytes: int,
+    ) -> HttpResponse | RedirectResponse: ...
+
+
+class PinnedNetworkBackend(httpcore.AsyncNetworkBackend):
+    """Connect to a validated IP while preserving the hostname for TLS and HTTP."""
+
+    def __init__(
+        self,
+        pinned_ip: str,
+        *,
+        delegate: httpcore.AsyncNetworkBackend | None = None,
+    ) -> None:
+        self.pinned_ip = pinned_ip
+        self.delegate = delegate or cast(httpcore.AsyncNetworkBackend, httpcore.AnyIOBackend())
+
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options=None,
+    ) -> httpcore.AsyncNetworkStream:
+        return await self.delegate.connect_tcp(
+            self.pinned_ip,
+            port,
+            timeout=timeout,
+            local_address=local_address,
+            socket_options=socket_options,
+        )
+
+    async def connect_unix_socket(
+        self,
+        path: str,
+        timeout: float | None = None,
+        socket_options=None,
+    ) -> httpcore.AsyncNetworkStream:
+        return await self.delegate.connect_unix_socket(
+            path,
+            timeout=timeout,
+            socket_options=socket_options,
+        )
+
+    async def sleep(self, seconds: float) -> None:
+        await self.delegate.sleep(seconds)
+
+
+def _pinned_request(url: str, resolved_ip: str) -> tuple[str, dict[str, str], dict[str, str]]:
+    parts = urlsplit(url)
+    hostname = parts.hostname or ""
+    port = parts.port
+    ip_netloc = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
+    if port is not None:
+        ip_netloc = f"{ip_netloc}:{port}"
+    target = urlunsplit((parts.scheme, ip_netloc, parts.path, parts.query, ""))
+    host = hostname if port is None else f"{hostname}:{port}"
+    return target, {"host": host}, {"sni_hostname": hostname}
+
+
+class HttpxTransport:
+    def __init__(self, user_agent: str = "XinghanLeadFactory/1.0") -> None:
+        self.user_agent = user_agent
+
+    async def get(
+        self,
+        url: str,
+        resolved_ips: tuple[str, ...],
+        timeout_seconds: float,
+        max_bytes: int,
+    ) -> HttpResponse | RedirectResponse:
+        if not resolved_ips:
+            raise FetchError("No validated address is available")
+        hostname = urlsplit(url).hostname or ""
+        backend = PinnedNetworkBackend(resolved_ips[0])
+        timeout = {
+            "connect": timeout_seconds,
+            "read": timeout_seconds,
+            "write": timeout_seconds,
+            "pool": timeout_seconds,
+        }
+        headers = [
+            (b"host", hostname.encode("ascii")),
+            (b"user-agent", self.user_agent.encode("ascii")),
+            (b"accept-encoding", b"identity"),
+        ]
+        try:
+            async with (
+                httpcore.AsyncConnectionPool(network_backend=backend) as pool,
+                pool.stream(
+                    "GET",
+                    url,
+                    headers=headers,
+                    extensions={"timeout": timeout},
+                ) as response,
+            ):
+                response_headers = {
+                    key.decode("ascii").casefold(): value.decode("latin-1")
+                    for key, value in response.headers
+                }
+                location = response_headers.get("location")
+                if response.status in {301, 302, 303, 307, 308} and location:
+                    return RedirectResponse(location)
+                chunks: list[bytes] = []
+                length = 0
+                async for chunk in response.aiter_stream():
+                    length += len(chunk)
+                    if length > max_bytes:
+                        raise FetchError("Response exceeds configured size limit")
+                    chunks.append(chunk)
+                return HttpResponse(
+                    response.status,
+                    response_headers,
+                    b"".join(chunks),
+                    url,
+                )
+        except (httpcore.NetworkError, httpcore.TimeoutException, httpcore.ProtocolError) as exc:
+            raise httpx.TransportError(str(exc)) from exc
+
+
+async def _sleep(callback: Callable[[float], object], seconds: float) -> None:
+    result = callback(seconds)
+    if inspect.isawaitable(result):
+        await result
+
+
+class Fetcher:
+    def __init__(
+        self,
+        transport: Transport | None = None,
+        resolver: Resolver | None = None,
+        *,
+        timeout_seconds: float = 12,
+        max_response_bytes: int = 2_000_000,
+        max_redirects: int = 5,
+        max_retries: int = 2,
+        domain_delay_seconds: float = 0,
+        allowed_content_types: tuple[str, ...] = ("text/html",),
+        sleep: Callable[[float], object] = asyncio.sleep,
+    ) -> None:
+        self.transport = transport or HttpxTransport()
+        self.resolver = resolver or SocketResolver()
+        self.timeout_seconds = timeout_seconds
+        self.max_response_bytes = max_response_bytes
+        self.max_redirects = max_redirects
+        self.max_retries = max_retries
+        self.domain_delay_seconds = domain_delay_seconds
+        self.allowed_content_types = allowed_content_types
+        self.sleep = sleep
+        self._domain_locks: dict[str, asyncio.Lock] = {}
+
+    async def fetch(
+        self,
+        safe_url: SafeUrl,
+        budget: BudgetLedger,
+        *,
+        allowed_content_types: tuple[str, ...] | None = None,
+    ) -> FetchResult:
+        current = safe_url
+        redirects = 0
+        while True:
+            fresh = validate_public_url(current.url, self.resolver)
+            if set(fresh.resolved_ips) != set(current.resolved_ips):
+                raise UnsafeUrlError("DNS resolution changed after URL validation")
+
+            response: HttpResponse | RedirectResponse | None = None
+            lock = self._domain_locks.setdefault(current.hostname, asyncio.Lock())
+            async with lock:
+                for attempt in range(self.max_retries + 1):
+                    budget.consume(BudgetKind.PAGE)
+                    if self.domain_delay_seconds:
+                        await _sleep(self.sleep, self.domain_delay_seconds)
+                    try:
+                        response = await self.transport.get(
+                            current.url,
+                            current.resolved_ips,
+                            self.timeout_seconds,
+                            self.max_response_bytes,
+                        )
+                        break
+                    except (TimeoutError, httpx.TransportError) as exc:
+                        if attempt == self.max_retries:
+                            raise FetchError(f"Fetch failed after {attempt + 1} attempts") from exc
+                        await _sleep(self.sleep, 2 ** (attempt + 1))
+
+            if response is None:
+                raise FetchError("Fetch produced no response")
+
+            if isinstance(response, RedirectResponse):
+                redirects += 1
+                if redirects > self.max_redirects:
+                    raise FetchError("Too many redirects")
+                target = urljoin(current.url, response.location)
+                current = validate_public_url(target, self.resolver)
+                continue
+
+            if len(response.content) > self.max_response_bytes:
+                raise FetchError("Response exceeds configured size limit")
+            content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().casefold()
+            accepted_types = allowed_content_types or self.allowed_content_types
+            if content_type not in accepted_types:
+                raise FetchError(f"Unsupported content type: {content_type or 'missing'}")
+            if response.status_code >= 400:
+                raise FetchError(f"HTTP {response.status_code}")
+            return response.to_fetch_result()
+
+    async def allowed_by_robots(
+        self, safe_url: SafeUrl, budget: BudgetLedger, user_agent: str
+    ) -> bool:
+        parts = urlsplit(safe_url.url)
+        robots_url = urlunsplit((parts.scheme, parts.netloc, "/robots.txt", "", ""))
+        robots_safe = validate_public_url(robots_url, self.resolver)
+        try:
+            result = await self.fetch(
+                robots_safe,
+                budget,
+                allowed_content_types=("text/plain", "text/html"),
+            )
+        except FetchError:
+            return True
+        return RobotsPolicy.from_text(result.text).allowed(user_agent, safe_url.url)

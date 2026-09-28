@@ -1,0 +1,40 @@
+version: "2026-09-28"
+families:
+  - id: airline_airport
+    name: Airline and Airport Supplies
+    aliases: [airline catering, inflight, airport supplies, cabin service, galley]
+    buyer_signals: [airline, airport, inflight catering, cabin service, ground handling]
+    exclusions: [aircraft manufacturer, flight school]
+    recommended_offerings:
+      - Airline meal trays and meal boxes
+      - Cutlery kits and refreshing towels
+      - Airsickness and cabin waste bags
+      - Boarding passes, labels, and security seals
+  - id: foodservice_packaging
+    name: Foodservice Packaging
+    aliases: [food packaging, catering packaging, takeaway packaging, meal containers]
+    buyer_signals: [foodservice, central kitchen, restaurant supply, supermarket, distributor]
+    exclusions: [consumer-only restaurant]
+    recommended_offerings:
+      - Aluminum and plastic meal containers
+      - Paper food boxes, bags, and cups
+      - Cling film, foil sheets, and catering labels
+  - id: sustainable_packaging
+    name: Biodegradable and Compostable Products
+    aliases: [bagasse, sugarcane fibre, compostable, biodegradable, PLA, PBAT]
+    buyer_signals: [plastic reduction, sustainable procurement, compostable packaging]
+    exclusions: [waste collector]
+    recommended_offerings:
+      - Bagasse meal trays
+      - PLA and wooden cutlery kits
+      - PLA-coated cups and PLA/PBAT bags
+  - id: flexible_packaging
+    name: Flexible Packaging
+    aliases: [heat seal film, lidding film, printed film, cling film, packaging roll]
+    buyer_signals: [food manufacturer, packaging distributor, private label, contract packing]
+    exclusions: [software packaging]
+    recommended_offerings:
+      - Heat-seal and lidding films
+      - Printed packaging films
+      - Commercial cling film rolls
+

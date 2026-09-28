@@ -1,0 +1,18 @@
+version: "2026-09-28"
+profiles:
+  - id: aviation_catering
+    name: Aviation Catering and Supply Chain
+    company_types: [airline, inflight caterer, airport caterer, airport operator, aviation distributor]
+    high_value_signals: [inflight meals, airline catering, cabin service, airport procurement, tender]
+    low_fit_signals: [flight school, travel agency]
+  - id: foodservice_distribution
+    name: Foodservice Packaging Distribution
+    company_types: [importer, wholesaler, distributor, restaurant supplier, central kitchen, supermarket supplier]
+    high_value_signals: [wholesale, distribution, private label, custom printing, commercial kitchen]
+    low_fit_signals: [single restaurant, consumer shop]
+  - id: sustainable_buyers
+    name: Sustainable Packaging Buyers
+    company_types: [importer, distributor, food brand, caterer, hospitality group, retailer]
+    high_value_signals: [bagasse, compostable, PLA, PBAT, plastic reduction, sustainable procurement]
+    low_fit_signals: [waste collector, recycling blog]
+
